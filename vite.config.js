@@ -5,7 +5,7 @@ export default defineConfig({
   base: "./",
   build: {
     outDir: "../public",
-    emptyOutDir: true, // Cleans the libs folder before building
+    emptyOutDir: false, // Keep static files (favicons, anchoralarm.png, leaflet/)
     minify: false,
     sourcemap: true,
     rollupOptions: {
