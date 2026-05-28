@@ -18,7 +18,8 @@
   "files": [
     "src",
     "shared",
-    "public"
+    "public",
+    "screenshot.png"
   ],
   "lint-staged": {
     "*.js": "eslint --fix",
@@ -26,11 +27,14 @@
   },
   "keywords": [
     "signalk-node-server-plugin",
-    "signalk-webapp"
+    "signalk-webapp",
+    "signalk-category-notifications",
+    "signalk-category-ais"
   ],
   "signalk": {
     "appIcon": "anchoralarm.png",
-    "displayName": "Y2K's Anchor Alarm"
+    "displayName": "Y2K's Anchor Alarm",
+    "screenshots": ["./screenshot.png"]
   },
   "author": {
     "name": "Y2K Sailing (forked from Zach Hoeken)",
