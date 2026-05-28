@@ -1,6 +1,6 @@
 {
   "name": "y2k-anchor-alarm",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "description": "Anchor alarm with wind speed, wind shift & AIS proximity alarms, scope calculator and engine override — fork of hoeken/hoekens-anchor-alarm.",
   "main": "src/index.cjs",
   "type": "module",
