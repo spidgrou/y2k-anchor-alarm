@@ -123,6 +123,30 @@ export class AppState {
             policy: "fixed",
             sendMeta: "all",
           },
+          {
+            path: "notifications.environment.wind.speed",
+            period: DELTA_FAST_SPEED,
+            format: "full",
+            policy: "fixed",
+          },
+          {
+            path: "notifications.environment.wind.directionChange",
+            period: DELTA_FAST_SPEED,
+            format: "full",
+            policy: "fixed",
+          },
+          {
+            path: "notifications.environment.ais.proximity",
+            period: DELTA_FAST_SPEED,
+            format: "full",
+            policy: "fixed",
+          },
+          {
+            path: "environment.wind.referenceDirection",
+            period: DELTA_SLOW_SPEED,
+            format: "full",
+            policy: "fixed",
+          },
         ],
       },
     );
@@ -219,6 +243,22 @@ export class AppState {
     this.anchor.notification =
       this.extract(data, "notifications.navigation.anchor", false) ??
       this.anchor.notification;
+
+    this.windSpeedAlarm =
+      this.extract(data, "notifications.environment.wind.speed", false) ??
+      this.windSpeedAlarm;
+
+    this.windDirAlarm =
+      this.extract(data, "notifications.environment.wind.directionChange", false) ??
+      this.windDirAlarm;
+
+    this.aisAlarm =
+      this.extract(data, "notifications.environment.ais.proximity", false) ??
+      this.aisAlarm;
+
+    this.windRefDir =
+      this.extract(data, "environment.wind.referenceDirection", false) ??
+      this.windRefDir;
   }
 
   handleDelta(timestamp, delta) {
@@ -278,6 +318,14 @@ export class AppState {
     }
     else if (path == "notifications.navigation.anchor")
       this.anchor.notification = apply(this.anchor.notification);
+    else if (path == "notifications.environment.wind.speed")
+      this.windSpeedAlarm = apply(this.windSpeedAlarm);
+    else if (path == "notifications.environment.wind.directionChange")
+      this.windDirAlarm = apply(this.windDirAlarm);
+    else if (path == "notifications.environment.ais.proximity")
+      this.aisAlarm = apply(this.aisAlarm);
+    else if (path == "environment.wind.referenceDirection")
+      this.windRefDir = apply(this.windRefDir);
     else if (!path.startsWith("notifications"))
       console.log(`[websocket] Ignoring: ${path}`);
   }

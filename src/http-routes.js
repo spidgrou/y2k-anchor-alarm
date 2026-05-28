@@ -70,12 +70,60 @@ export function register(app, plugin, router) {
     }
   });
 
+  router.post("/resetWindReference", (req, res) => {
+    try {
+      plugin.resetWindReference();
+      res.json({ statusCode: 200, state: "COMPLETED" });
+    } catch (err) {
+      fail(res, err);
+    }
+  });
+
+  router.post("/saveConfig", (req, res) => {
+    try {
+      const updates = req.body;
+      if (!updates || typeof updates !== "object") {
+        res.status(400).json({ statusCode: 400, state: "FAILED", message: "body must be an object" });
+        return;
+      }
+      // Merge updates into current configuration
+      Object.assign(plugin.configuration, updates);
+      plugin.savePluginOptions();
+
+      // Dynamically start/stop wind subscription based on toggle
+      const wantsWind = updates.windEnabled === true || updates.windDirChangeEnabled === true;
+      if (wantsWind && plugin.windSubscription.length === 0) {
+        plugin.startWatchingWind();
+      } else if (!wantsWind && plugin.windSubscription.length > 0) {
+        plugin.stopWatchingWind();
+        plugin.windSpeedAlarmState = "normal";
+        plugin.windDirAlarmState = "normal";
+        plugin.updateWindAlarm("speed", "normal", "Wind alarm idle");
+        plugin.updateWindAlarm("directionChange", "normal", "Wind direction alarm idle");
+      }
+
+      res.json({ statusCode: 200, state: "COMPLETED" });
+    } catch (err) {
+      fail(res, err);
+    }
+  });
+
   router.get("/ui-config", (req, res) => {
     const config = plugin.configuration || {};
     res.json({
       fleetFilterRadius: config.fleetFilterRadius,
       connectionType: config.connectionType,
       defaultBasemap: config.defaultBasemap,
+      windEnabled: config.windEnabled,
+      windSpeedThreshold: config.windSpeedThreshold,
+      windDirChangeEnabled: config.windDirChangeEnabled,
+      windDirChangeDegrees: config.windDirChangeDegrees,
+      windAlarmInterval: config.windAlarmInterval,
+      windAlarmSeverity: config.windAlarmSeverity,
+      aisProximityEnabled: config.aisProximityEnabled,
+      aisProximityRadius: config.aisProximityRadius,
+      aisProximityInterval: config.aisProximityInterval,
+      aisProximitySeverity: config.aisProximitySeverity,
     });
   });
 }

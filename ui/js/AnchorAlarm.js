@@ -15,6 +15,7 @@ import { ScopePanel } from "./hud/ScopePanel.js";
 import { StaleReloader } from "./StaleReloader.js";
 import { AnchorOverlay } from "./hud/AnchorOverlay.js";
 import { AnchorController } from "./AnchorController.js";
+import { AlarmPanel } from "./hud/AlarmPanel.js";
 import { ControlToolbar } from "./hud/ControlToolbar.js";
 
 const UPDATE_INTERVAL_MS = 500;
@@ -23,7 +24,7 @@ const INITIAL_LOAD_RETRY_MS = 5000;
 
 class AnchorAlarm {
   constructor() {
-    this.signalK = new SignalKHelper({ pluginName: "hoekens-anchor-alarm" });
+    this.signalK = new SignalKHelper({ pluginName: "y2k-anchor-alarm" });
     this.state = new AppState();
     this.config = {
       connectionType: "WEBSOCKET",
@@ -118,10 +119,19 @@ class AnchorAlarm {
     this.toolbar = new ControlToolbar({
       parent: document.getElementById("map_container"),
       getMapContainer: () => this.map && this.map.getContainer(),
-      onRaise: () => this.anchorController.requestRaise(),
+      onRaise: () => {
+        this.anchorController.requestRaise();
+        // Re-fetch config after raise to sync alarm toggles
+        this.refreshConfig();
+      },
       onDrop: () => this.anchorController.requestDrop(),
       onSetZone: (zoneConfig) => this.anchorController.setZone(zoneConfig),
+      config: this.config,
     });
+
+    // Alarm panel (topright): wind + AIS toggles with +/- steppers
+    this.alarmPanel = new AlarmPanel();
+    this.map.addControl(this.alarmPanel);
 
     this.signalK
       .fetchPluginInfo()
@@ -179,6 +189,11 @@ class AnchorAlarm {
       .fetchConfig()
       .then((config) => {
         this.config = config;
+        // Propagate config to toolbar and alarm panel
+        if (this.toolbar)
+          this.toolbar.setConfig(config);
+        if (this.alarmPanel)
+          this.alarmPanel.setConfig(config);
       })
       .catch((error) => {
         console.error("Failed to load config, using defaults", error);
@@ -200,6 +215,18 @@ class AnchorAlarm {
           this.pollTimer = setInterval(() => this.poll(), POLL_INTERVAL_MS);
         }
       });
+  }
+
+  // Re-fetch plugin config and sync UI (used after raise/drop)
+  refreshConfig() {
+    this.signalK
+      .fetchConfig()
+      .then((config) => {
+        this.config = config;
+        if (this.alarmPanel)
+          this.alarmPanel.setConfig(config);
+      })
+      .catch(() => {});
   }
 
   // Decorates the map shell built in init() with the rest of the controls.
@@ -262,6 +289,8 @@ class AnchorAlarm {
     this.scopePanel.update(this.state);
     this.anchorOverlay.update(this.state);
     this.fleetLayer.update(this.state);
+    if (this.alarmPanel)
+      this.alarmPanel.update(this.state);
   }
 
   // === Live polling ================================================================

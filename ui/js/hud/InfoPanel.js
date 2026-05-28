@@ -14,8 +14,21 @@ function formatClockTime(value) {
   return `${h}:${m.toString().padStart(2, "0")} ${ampm}`;
 }
 
-const TIDE_ARROW_UP = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="12" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5"/></svg>`;
-const TIDE_ARROW_DOWN = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="12" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1"/></svg>`;
+const TIDE_ARROW_UP = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" fill=\"currentColor\" viewBox=\"0 0 16 16\"><path fill-rule=\"evenodd\" d=\"M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5\"/></svg>`;
+const TIDE_ARROW_DOWN = `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" fill=\"currentColor\" viewBox=\"0 0 16 16\"><path fill-rule=\"evenodd\" d=\"M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1\"/></svg>`;
+
+function alarmClass(state) {
+  if (!state || state === "normal") return "";
+  if (state === "warn" || state === "alert") return "wind-warning";
+  return "wind-alarm";
+}
+
+function degreesToCompass(deg) {
+  const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  const index = Math.round(deg / 22.5) % 16;
+  return dirs[index];
+}
 
 export const InfoPanel = L.Control.extend({
   options: { position: "bottomright" },
@@ -47,6 +60,37 @@ export const InfoPanel = L.Control.extend({
             <td><span id='pluginStatus'>Loading</span></td>
           </tr>
         </table>
+
+        <hr class="info-separator" />
+        <div id="windAlarmSection" style="display:none">
+          <div class="info-section-header">VENTO</div>
+          <table>
+            <tr id="windSpeedRow">
+              <th>Speed:</th>
+              <td><span id="windSpeedValue">~</span></td>
+            </tr>
+            <tr id="windDirectionRow">
+              <th>Direction:</th>
+              <td><span id="windDirValue">~</span></td>
+            </tr>
+            <tr id="windShiftRow">
+              <th>Ref:</th>
+              <td><span id="windShiftValue">~</span></td>
+            </tr>
+          </table>
+          <button id="resetWindRefBtn" class="reset-wind-btn" title="Reset wind direction reference to current">&#x21BA; Reset Wind Ref</button>
+        </div>
+
+        <hr class="info-separator" />
+        <div id="aisAlarmSection" style="display:none">
+          <div class="info-section-header">AIS</div>
+          <table>
+            <tr id="aisNearestRow">
+              <th>Nearest:</th>
+              <td><span id="aisNearestValue">~</span></td>
+            </tr>
+          </table>
+        </div>
     `;
     this._container = container;
     this._depthValue = container.querySelector("#depthValue");
@@ -58,6 +102,30 @@ export const InfoPanel = L.Control.extend({
     this._tideLowTime = container.querySelector("#lowTide");
     this._tideLowTimeRow = container.querySelector("#lowTideRow");
     this._pluginStatus = container.querySelector("#pluginStatus");
+
+    // Wind alarm refs
+    this._windAlarmSection = container.querySelector("#windAlarmSection");
+    this._windSpeedValue = container.querySelector("#windSpeedValue");
+    this._windDirValue = container.querySelector("#windDirValue");
+    this._windShiftValue = container.querySelector("#windShiftValue");
+    this._windSpeedRow = container.querySelector("#windSpeedRow");
+    this._windDirectionRow = container.querySelector("#windDirectionRow");
+    this._windShiftRow = container.querySelector("#windShiftRow");
+    this._resetWindRefBtn = container.querySelector("#resetWindRefBtn");
+
+    // AIS alarm refs
+    this._aisAlarmSection = container.querySelector("#aisAlarmSection");
+    this._aisNearestValue = container.querySelector("#aisNearestValue");
+    this._aisNearestRow = container.querySelector("#aisNearestRow");
+
+    // Reset wind ref button handler
+    L.DomEvent.on(this._resetWindRefBtn, "click", () => {
+      fetch("/plugins/y2k-anchor-alarm/resetWindReference", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }).catch((err) => console.error("Reset wind ref failed:", err));
+    });
+
     return container;
   },
 
@@ -91,7 +159,105 @@ export const InfoPanel = L.Control.extend({
     else
       this.setDepthValue(null);
     this.setStatus(state.anchor);
+
+    // Wind alarm section
+    this.updateWindAlarms(state);
+
+    // AIS alarm section
+    this.updateAISAlarms(state);
   },
+
+  // ============================================================
+  // WIND ALARMS
+  // ============================================================
+
+  updateWindAlarms: function (state) {
+    const hasWind = state.aws || state.twa;
+    const hasAlarms = state.windSpeedAlarm || state.windDirAlarm;
+
+    if (!hasWind) {
+      this._windAlarmSection.style.display = "none";
+      return;
+    }
+    this._windAlarmSection.style.display = "";
+
+    // Wind speed
+    if (state.aws) {
+      const speedKts = state.aws.value * 1.94384; // m/s to knots
+      this._windSpeedValue.textContent = `${Math.round(speedKts)} kts`;
+      const speedState = state.windSpeedAlarm?.value?.state || "normal";
+      this._windSpeedRow.className = alarmClass(speedState);
+    } else {
+      this._windSpeedValue.textContent = "~";
+      this._windSpeedRow.className = "";
+    }
+
+    // Wind direction
+    if (state.twa) {
+      const dirDeg = state.twa.value * (180 / Math.PI);
+      const compass = degreesToCompass(dirDeg);
+      this._windDirValue.textContent = `${Math.round(dirDeg)}° (${compass})`;
+      this._windDirectionRow.className = "";
+    } else {
+      this._windDirValue.textContent = "~";
+      this._windDirectionRow.className = "";
+    }
+
+    // Wind reference direction (always shown when set)
+    if (state.windRefDir && state.windRefDir.value != null) {
+      const refDeg = state.windRefDir.value * (180 / Math.PI);
+      const refCompass = degreesToCompass(refDeg);
+      const dirDeg = state.twa ? state.twa.value * (180 / Math.PI) : null;
+      let shiftText = `${Math.round(refDeg)}° (${refCompass})`;
+      if (dirDeg !== null) {
+        let diff = dirDeg - refDeg;
+        while (diff > 180) diff -= 360;
+        while (diff < -180) diff += 360;
+        shiftText += `  Δ${diff > 0 ? "+" : ""}${Math.round(diff)}°`;
+      }
+      this._windShiftValue.textContent = shiftText;
+      this._windShiftRow.style.display = "";
+
+      // Apply alarm color based on direction shift alarm state
+      const dirAlarm = state.windDirAlarm?.value;
+      if (dirAlarm && dirAlarm.state !== "normal") {
+        this._windShiftRow.className = alarmClass(dirAlarm.state);
+      } else {
+        this._windShiftRow.className = "";
+      }
+    } else {
+      this._windShiftValue.textContent = "—";
+      this._windShiftRow.style.display = "";
+      this._windShiftRow.className = "";
+    }
+
+    // No separate shift alarm message row — reference + delta + color is enough
+  },
+
+  // ============================================================
+  // AIS ALARMS
+  // ============================================================
+
+  updateAISAlarms: function (state) {
+    if (!state.aisAlarm) {
+      this._aisAlarmSection.style.display = "none";
+      return;
+    }
+    this._aisAlarmSection.style.display = "";
+
+    const alarm = state.aisAlarm.value;
+    if (alarm) {
+      this._aisNearestValue.textContent = alarm.message || "~";
+      this._aisNearestRow.className = alarmClass(alarm.state);
+    } else {
+      this._aisNearestValue.textContent = "~";
+      this._aisNearestRow.className = "";
+    }
+  },
+
+  // ============================================================
+  // TIDE / DEPTH / STATUS (existing)
+  // ============================================================
 
   setCurrentTide: function (currentTide, rising) {
     if (currentTide) {

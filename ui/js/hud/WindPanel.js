@@ -81,10 +81,24 @@ export const WindPanel = L.Control.extend({
 
   update: function (state) {
     //if we don't have the right data, hide ourself.
-    if (!state.aws || !state.twa)
+    if (!state.aws || !state.twa) {
       this.hide();
-    else
-      this.setSpeed(state.aws, state.twa);
+      return;
+    }
+
+    this.show();
+    this.setSpeed(state.aws, state.twa);
+
+    // Wind alarm indicator: add CSS class for color
+    const speedAlarm = state.windSpeedAlarm?.value;
+    const dirAlarm = state.windDirAlarm?.value;
+    const isAlarm = (speedAlarm && speedAlarm.state !== "normal") ||
+                    (dirAlarm && dirAlarm.state !== "normal");
+    if (isAlarm) {
+      this._container.classList.add("wind-alarm-active");
+    } else {
+      this._container.classList.remove("wind-alarm-active");
+    }
   },
 
   clearSpeed: function () {

@@ -11,7 +11,7 @@
   },
   "servers": [
     {
-      "url": "/plugins/hoekens-anchor-alarm"
+      "url": "/plugins/y2k-anchor-alarm"
     }
   ],
   "tags": [
@@ -309,6 +309,28 @@
           },
           "403": {
             "$ref": "#/components/responses/AnchorError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/resetWindReference": {
+      "post": {
+        "tags": ["anchor"],
+        "summary": "Reset wind direction reference",
+        "description": "Records the current wind direction as the new reference for the wind direction shift alarm. Use after acknowledging a wind shift.",
+        "responses": {
+          "200": {
+            "description": "Wind reference reset successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/InternalError"

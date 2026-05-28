@@ -49,6 +49,27 @@ export const metas = {
   "navigation.anchor.watchZone": {
     description: "Anchor watch zone configuration (shape + parameters). Anchor position is stored separately on navigation.anchor.position.",
   },
+  "environment.wind.speedApparent": {
+    units: "m/s",
+    displayUnits: {
+      category: "speed",
+    },
+    description: "Apparent wind speed — used for wind speed alarm",
+  },
+  "environment.wind.directionTrue": {
+    units: "rad",
+    displayUnits: {
+      category: "angle",
+    },
+    description: "True wind direction — used for wind direction shift alarm",
+  },
+  "environment.wind.referenceDirection": {
+    units: "rad",
+    displayUnits: {
+      category: "angle",
+    },
+    description: "Wind direction recorded when anchor was dropped — used for wind shift alarm reference",
+  },
 };
 
 export const requiredPaths = [
@@ -119,7 +140,7 @@ export const requiredPaths = [
 
 export function buildSchema(app) {
   const schemaData = {
-    title: "Hoeken's Anchor Alarm",
+    title: "Y2K's Anchor Alarm",
     type: "object",
     properties: {
       pathChecks: {
@@ -192,6 +213,72 @@ export function buildSchema(app) {
         title: "Anchor Watch Zone (JSON)",
         description: "Watch zone shape + parameters + anchor position as a single JSON string. ⚠️ Do not edit by hand — use the web UI. Blank when no anchor is dropped. Example: {\"type\":\"circle\",\"radius\":60,\"position\":{\"latitude\":0,\"longitude\":0}}.",
         default: "",
+      },
+
+      // === WIND SPEED ALARM ===
+      windEnabled: {
+        type: "boolean",
+        title: "Enable Wind Alarms",
+        description: "Enable wind speed and direction alarms while anchored",
+        default: false,
+      },
+      windDirChangeEnabled: {
+        type: "boolean",
+        title: "Enable Wind Direction Shift Alarm",
+        description: "Alert when wind direction shifts beyond the threshold from the anchor-drop reference",
+        default: true,
+      },
+      windSpeedThreshold: {
+        type: "number",
+        title: "Wind Speed Threshold (knots)",
+        description: "Trigger alarm when apparent wind exceeds this speed",
+        default: 30,
+      },
+      windDirChangeDegrees: {
+        type: "number",
+        title: "Wind Direction Shift Threshold (degrees)",
+        description: "Trigger alarm when wind direction shifts more than this from the anchor-drop reference",
+        default: 90,
+      },
+      windAlarmSeverity: {
+        type: "string",
+        title: "Wind Alarm Severity",
+        description: "Wind alarm notification level",
+        default: "alarm",
+        enum: ["alert", "warn", "alarm", "emergency"],
+      },
+      windAlarmInterval: {
+        type: "number",
+        title: "Wind Alarm Interval (seconds)",
+        description: "How often to repeat wind alarms. Zero = continuously",
+        default: 60,
+      },
+
+      // === AIS PROXIMITY ALARM ===
+      aisProximityEnabled: {
+        type: "boolean",
+        title: "Enable AIS Proximity Alarm",
+        description: "Alert when any other vessel enters a radius around you",
+        default: false,
+      },
+      aisProximityRadius: {
+        type: "integer",
+        title: "AIS Proximity Radius (meters)",
+        description: "Trigger alarm when another vessel enters this radius from your GPS position",
+        default: 200,
+      },
+      aisProximitySeverity: {
+        type: "string",
+        title: "AIS Proximity Severity",
+        description: "AIS proximity alarm notification level",
+        default: "alarm",
+        enum: ["alert", "warn", "alarm", "emergency"],
+      },
+      aisProximityInterval: {
+        type: "number",
+        title: "AIS Proximity Interval (seconds)",
+        description: "How often to repeat the AIS proximity alarm. Zero = continuously",
+        default: 60,
       },
     },
   };

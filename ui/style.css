@@ -56,7 +56,7 @@ body,
 
 .info {
   padding: 5px;
-  width: 200px;
+  width: 240px;
   font-size: 11pt;
   line-height: 1.1;
   background-color: white;
@@ -316,4 +316,159 @@ body,
   background-color: white;
   font-weight: bold;
   line-height: 1.2;
+}
+
+/* InfoPanel section separator */
+.info-separator {
+  border: none;
+  border-top: 1px solid #ccc;
+  margin: 4px 0;
+}
+
+/* InfoPanel section header */
+.info-section-header {
+  font-weight: bold;
+  color: #333;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+/* Wind/AIS alarm states for table rows */
+tr.wind-alarm {
+  color: #d32f2f;
+  font-weight: bold;
+}
+
+tr.wind-warning {
+  color: #f57c00;
+  font-weight: bold;
+}
+
+/* WindPanel container when alarm active */
+.windBarbControl.wind-alarm-active {
+  border: 2px solid #d32f2f;
+  background-color: #fff5f5;
+}
+
+/* Reset wind reference button */
+.reset-wind-btn {
+  display: block;
+  margin: 4px auto 2px;
+  padding: 4px 10px;
+  font-size: 0.75em;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #f5f5f5;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.reset-wind-btn:hover {
+  background: #e0e0e0;
+}
+
+.reset-wind-btn:active {
+  background: #ccc;
+}
+
+/* Toolbar separator */
+.toolbar-separator {
+  border: none;
+  border-top: 1px solid #bbb;
+  margin: 6px 0;
+}
+
+/* Alarm panel (topright): wind + AIS toggles with +/- steppers */
+.alarm-panel {
+  padding: 6px 8px;
+  background: white;
+  border-radius: 4px;
+  font-size: 12px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.alarm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alarm-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+}
+
+.alarm-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.alarm-toggle input[type="checkbox"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.alarm-stepper {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 19px;
+}
+
+.stepper-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  font-weight: bold;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #f0f0f0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-btn:active {
+  background: #ccc;
+}
+
+.stepper-val {
+  min-width: 36px;
+  height: 28px;
+  font-size: 14px;
+  font-weight: bold;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.stepper-unit {
+  font-size: 11px;
+  color: #666;
+  margin-left: 2px;
 }

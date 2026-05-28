@@ -29,9 +29,9 @@ export default function (app) {
   // PLUGIN IDENTITY & STATE
   // ============================================================
 
-  plugin.id = "hoekens-anchor-alarm";
-  plugin.name = "Hoeken's Anchor Alarm";
-  plugin.description = "Anchor alarm with scope calculator, scribble tracks, engine override, and physically accurate icons.";
+  plugin.id = "y2k-anchor-alarm";
+  plugin.name = "Y2K's Anchor Alarm";
+  plugin.description = "Anchor alarm with scope calculator, scribble tracks, engine override, and physically accurate icons — plus wind and AIS proximity alarms.";
 
   plugin.subscriberPeriod = 1000;
 
@@ -40,6 +40,18 @@ export default function (app) {
   plugin.configuration = undefined;
   plugin.lastAlarmSent = 0;
   plugin.positionWatchdogTimer = false;
+
+  // Wind alarm state
+  plugin.windSubscription = [];
+  plugin.windReferenceDirection = null;
+  plugin.windSpeedAlarmState = "normal";
+  plugin.windDirAlarmState = "normal";
+  plugin.lastWindSpeedAlarm = 0;
+  plugin.lastWindDirAlarm = 0;
+
+  // AIS proximity alarm state
+  plugin.aisAlarmState = "normal";
+  plugin.lastAISAlarm = 0;
 
   plugin.bus = new SignalKBus(app, plugin.id);
 
@@ -106,6 +118,19 @@ export default function (app) {
         plugin.startWatchingPosition();
       }
 
+      // Init wind alarms
+      if (plugin.configuration.windEnabled || plugin.configuration.windDirChangeEnabled) {
+        plugin.startWatchingWind();
+      }
+
+      // Seed surfaceToTransducer = 0 for derived-data transducerToKeel calculation
+      plugin.bus.queueDelta("environment.depth.surfaceToTransducer", 0);
+
+      // Init alarm notifications (idle state so UI shows "normal" immediately)
+      plugin.updateWindAlarm("speed", "normal", "Wind alarm idle");
+      plugin.updateWindAlarm("directionChange", "normal", "Wind direction alarm idle");
+      plugin.updateAISAlarm("normal", "AIS proximity alarm idle");
+
       //OLD APIs - only here for backwards compatibility
       if (app.registerActionHandler) {
         app.registerActionHandler(
@@ -141,6 +166,7 @@ export default function (app) {
     });
 
     plugin.stopWatchingPosition();
+    plugin.stopWatchingWind();
 
     app.setPluginStatus("Stopped");
   };
@@ -167,6 +193,32 @@ export default function (app) {
     plugin.bus.queueDelta("notifications.navigation.anchor", {
       state: state,
       method: method,
+      message: message,
+    });
+
+    plugin.bus.sendUpdates();
+  };
+
+  plugin.updateWindAlarm = function (type, state, message) {
+    if (!message)
+      message = state.charAt(0).toUpperCase() + state.slice(1);
+
+    plugin.bus.queueDelta(`notifications.environment.wind.${type}`, {
+      state: state,
+      method: ["visual", "sound"],
+      message: message,
+    });
+
+    plugin.bus.sendUpdates();
+  };
+
+  plugin.updateAISAlarm = function (state, message) {
+    if (!message)
+      message = state.charAt(0).toUpperCase() + state.slice(1);
+
+    plugin.bus.queueDelta("notifications.environment.ais.proximity", {
+      state: state,
+      method: ["visual", "sound"],
       message: message,
     });
 
@@ -298,7 +350,212 @@ export default function (app) {
 
     plugin.onStop.forEach((f) => f());
     plugin.onStop = [];
+
+    // Clear wind reference from SignalK tree
+    plugin.bus.queueDelta("environment.wind.referenceDirection", null);
+    plugin.bus.sendUpdates();
+    plugin.windReferenceDirection = null;
+
+    // Reset all alarm flags on raise anchor
+    plugin.configuration.windEnabled = false;
+    plugin.configuration.windDirChangeEnabled = false;
+    plugin.configuration.aisProximityEnabled = false;
+    plugin.savePluginOptions();
+
+    // Reset alarm states and notifications
+    plugin.windSpeedAlarmState = "normal";
+    plugin.windDirAlarmState = "normal";
+    plugin.aisAlarmState = "normal";
+    plugin.lastWindSpeedAlarm = 0;
+    plugin.lastWindDirAlarm = 0;
+    plugin.lastAISAlarm = 0;
+    plugin.updateWindAlarm("speed", "normal", "Wind alarm idle");
+    plugin.updateWindAlarm("directionChange", "normal", "Wind direction idle");
+    plugin.updateAISAlarm("normal", "AIS proximity idle");
+
+    // Stop wind subscription if running
+    plugin.stopWatchingWind();
   };
+
+  // ============================================================
+  // WIND MONITORING
+  // ============================================================
+
+  plugin.startWatchingWind = function () {
+    if (plugin.windSubscription.length > 0)
+      return;
+
+    app.debug("starting wind monitoring");
+
+    app.subscriptionmanager.subscribe(
+      {
+        context: "vessels.self",
+        subscribe: [
+          {
+            path: "environment.wind.speedApparent",
+            period: plugin.subscriberPeriod,
+          },
+          {
+            path: "environment.wind.directionTrue",
+            period: plugin.subscriberPeriod,
+          },
+        ],
+      },
+      plugin.windSubscription,
+      (err) => {
+        app.error(err);
+        app.setProviderError(err);
+      },
+      plugin.handleWindUpdate,
+    );
+
+    // Also poll wind directly from the tree every second as fallback
+    // (deltas can be unreliable depending on SignalK subscription policies)
+    plugin._windTimer = setInterval(() => {
+      plugin.checkWindSpeedFromTree();
+      plugin.checkWindDirection();
+    }, plugin.subscriberPeriod);
+  };
+
+  plugin.stopWatchingWind = function () {
+    plugin.windSubscription.forEach((f) => f());
+    plugin.windSubscription = [];
+
+    if (plugin._windTimer) {
+      clearInterval(plugin._windTimer);
+      plugin._windTimer = null;
+    }
+  };
+
+  plugin.handleWindUpdate = function (delta) {
+    if (!plugin.configuration ||
+        (!plugin.configuration.windEnabled && !plugin.configuration.windDirChangeEnabled))
+      return;
+
+    let speedKnots, directionRad;
+
+    if (delta.updates) {
+      delta.updates.forEach((update) => {
+        if (update.values) {
+          update.values.forEach((vp) => {
+            if (vp.path === "environment.wind.speedApparent") {
+              // SignalK stores wind in m/s, convert to knots
+              speedKnots = vp.value * 1.94384;
+            }
+            if (vp.path === "environment.wind.directionTrue") {
+              directionRad = vp.value;
+            }
+          });
+        }
+      });
+    }
+
+    if (typeof speedKnots === "number")
+      plugin.checkWindSpeed(speedKnots);
+
+    if (typeof directionRad === "number")
+      plugin.checkWindDirection();
+  };
+
+  plugin.checkWindSpeed = function (speedKnots) {
+    const configuration = plugin.configuration;
+    const threshold = configuration.windSpeedThreshold;
+
+    if (speedKnots >= threshold) {
+      const interval = configuration.windAlarmInterval;
+      if (plugin.lastWindSpeedAlarm + interval * 1000 < Date.now()) {
+        // Engine override: if engines are on, silence
+        if (configuration.enableEngineCheck && Utils.checkEngineState(app))
+          return;
+
+        plugin.windSpeedAlarmState = configuration.windAlarmSeverity;
+        plugin.lastWindSpeedAlarm = Date.now();
+        plugin.updateWindAlarm(
+          "speed",
+          plugin.windSpeedAlarmState,
+          `Wind ${speedKnots.toFixed(0)} kts exceeds ${threshold} kts`,
+        );
+      }
+    } else {
+      // Revert to normal when under threshold
+      if (plugin.windSpeedAlarmState !== "normal") {
+        plugin.windSpeedAlarmState = "normal";
+        plugin.updateWindAlarm("speed", "normal", "Wind speed normal");
+      }
+    }
+  };
+
+  // Poll wind speed directly from SignalK tree (fallback timer)
+  plugin.checkWindSpeedFromTree = function () {
+    const speedMs = app.getSelfPath("environment.wind.speedApparent.value");
+    if (typeof speedMs === "number") {
+      plugin.checkWindSpeed(speedMs * 1.94384);
+    }
+  };
+
+  plugin.checkWindDirection = function () {
+    if (plugin.windReferenceDirection === null)
+      return;
+    if (!plugin.configuration.windDirChangeEnabled)
+      return;
+
+    // Read latest value directly from SignalK tree
+    const directionRad = app.getSelfPath("environment.wind.directionTrue.value");
+    if (typeof directionRad !== "number")
+      return;
+
+    const directionDeg = directionRad * (180 / Math.PI);
+    const refDeg = plugin.windReferenceDirection * (180 / Math.PI);
+
+    // Calculate shortest angular difference in [-180, 180]
+    let diff = directionDeg - refDeg;
+    while (diff > 180) diff -= 360;
+    while (diff < -180) diff += 360;
+
+    const absDiff = Math.abs(diff);
+    const threshold = plugin.configuration.windDirChangeDegrees;
+
+    if (absDiff >= threshold) {
+      const interval = plugin.configuration.windAlarmInterval;
+      if (plugin.lastWindDirAlarm + interval * 1000 < Date.now()) {
+        // Engine override
+        if (plugin.configuration.enableEngineCheck && Utils.checkEngineState(app))
+          return;
+
+        plugin.windDirAlarmState = plugin.configuration.windAlarmSeverity;
+        plugin.lastWindDirAlarm = Date.now();
+        plugin.updateWindAlarm(
+          "directionChange",
+          plugin.windDirAlarmState,
+          `Wind shifted ${diff >= 0 ? "+" : ""}${Math.round(diff)}\u00b0 (ref ${Math.round(refDeg)}\u00b0)`,
+        );
+      }
+    } else {
+      if (plugin.windDirAlarmState !== "normal") {
+        plugin.windDirAlarmState = "normal";
+        plugin.updateWindAlarm("directionChange", "normal", "Wind direction normal");
+      }
+    }
+  };
+
+  plugin.resetWindReference = function () {
+    const dir = app.getSelfPath("environment.wind.directionTrue.value");
+    if (typeof dir === "number") {
+      plugin.windReferenceDirection = dir;
+      plugin.windDirAlarmState = "normal";
+
+      // Write reference to SignalK tree for UI display
+      plugin.bus.queueDelta("environment.wind.referenceDirection", dir);
+
+      plugin.updateWindAlarm("directionChange", "normal",
+        `Reference reset to ${(dir * 180 / Math.PI).toFixed(0)}\u00b0`);
+      app.debug("wind reference reset to: " + dir);
+    }
+  };
+
+  // ============================================================
+  // POSITION CHECKS
+  // ============================================================
 
   plugin.checkPosition = function (vesselPosition) {
     const configuration = plugin.configuration;
@@ -362,6 +619,86 @@ export default function (app) {
       else {
         plugin.lastAlarmSent = Date.now();
         app.setPluginError("Dragging");
+      }
+    }
+
+    // AIS proximity check
+    if (plugin.configuration.aisProximityEnabled) {
+      plugin.checkAISProximity(vesselPosition);
+    }
+  };
+
+  // ============================================================
+  // AIS PROXIMITY CHECK
+  // ============================================================
+
+  plugin.checkAISProximity = function (vesselPosition) {
+    const radius = plugin.configuration.aisProximityRadius;
+    const vessels = app.getPath("vessels");
+    if (!vessels || typeof vessels !== "object")
+      return;
+
+    // Get own vessel's identity to skip self
+    const ownContext = app.selfContext;
+    // Extract own MMSI from context string like "urn:mrn:imo:mmsi:247067640"
+    let ownMmsi = app.getSelfPath("navigation.mmsi.value");
+    if (!ownMmsi && ownContext) {
+      const parts = ownContext.split(":");
+      ownMmsi = parts[parts.length - 1];
+    }
+
+    const ownLat = vesselPosition.latitude;
+    const ownLng = vesselPosition.longitude;
+
+    let nearestVessel = null;
+    let nearestDist = Infinity;
+
+    for (const [context, vessel] of Object.entries(vessels)) {
+      if (!vessel || typeof vessel !== "object")
+        continue;
+      // Skip own vessel: context, MMSI (top-level in vessels tree), or name
+      if (context === "self") continue;
+      if (ownContext && context === ownContext) continue;
+      // MMSI is a top-level string property on the vessel in the vessels tree
+      const vesselMmsi = vessel.mmsi;
+      if (ownMmsi && vesselMmsi === ownMmsi) continue;
+
+      const pos = vessel?.navigation?.position?.value;
+      if (!pos || typeof pos.latitude !== "number" || typeof pos.longitude !== "number")
+        continue;
+
+      const dist = distance(
+        point([pos.longitude, pos.latitude]),
+        point([ownLng, ownLat]),
+        { units: "meters" },
+      );
+
+      if (dist < radius && dist < nearestDist) {
+        nearestDist = dist;
+        nearestVessel = vessel?.name || vessel?.mmsi || context;
+      }
+    }
+
+    const interval = plugin.configuration.aisProximityInterval;
+
+    if (nearestVessel !== null) {
+      // Vessel within radius — trigger alarm with rate limiting
+      if (plugin.lastAISAlarm + interval * 1000 < Date.now()) {
+        if (plugin.configuration.enableEngineCheck && Utils.checkEngineState(app))
+          return;
+
+        plugin.aisAlarmState = plugin.configuration.aisProximitySeverity;
+        plugin.lastAISAlarm = Date.now();
+        plugin.updateAISAlarm(
+          plugin.aisAlarmState,
+          `${nearestVessel} at ${Math.round(nearestDist)}m`,
+        );
+      }
+    } else {
+      // No vessel within radius — revert to normal
+      if (plugin.aisAlarmState !== "normal") {
+        plugin.aisAlarmState = "normal";
+        plugin.updateAISAlarm("normal", "AIS proximity normal");
       }
     }
   };
@@ -430,6 +767,10 @@ export default function (app) {
     });
 
     plugin.startWatchingPosition();
+
+    // Always record wind reference when dropping anchor for display
+    plugin.resetWindReference();
+
     plugin.savePluginOptions();
   };
 
