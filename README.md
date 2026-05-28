@@ -1,51 +1,130 @@
-# hoekens-anchor-alarm
+# Y2K's Anchor Alarm
 
-<a href="/screenshot.png"><img src="/screenshot.png" alt="drawing" width="50%" align="right"/></a>
+> A fork of [Zach Hoeken's excellent anchor alarm plugin](https://github.com/hoeken/hoekens-anchor-alarm) — with extra wind and AIS proximity alarms.
 
-This is a fork of the venerable [signalk-anchoralarm-plugin](https://github.com/sbender9/signalk-anchoralarm-plugin) by Scott Bender.
+A [Signal K](https://signalk.org/) plugin and webapp that monitors your anchored position and alerts you when something changes — your boat drifting, the wind shifting, or another vessel getting too close.
 
-I wanted a simple, web-only anchor alarm with my own personal UI style and some features that may be controversial (like automatic alarm cancelling if your engines are running). If you want to use an external app or API, you are probably better off using the old plugin.
+Originally built by **Scott Bender** ([sbender9/signalk-anchoralarm-plugin](https://github.com/sbender9/signalk-anchoralarm-plugin)) and then rewritten and extended by **Zach Hoeken** ([hoeken/hoekens-anchor-alarm](https://github.com/hoeken/hoekens-anchor-alarm)) with a modern web UI, engine override, scope calculator, historical tracks, and physically accurate boat icons.
 
-Some of the changes I've made:
+This Y2K fork adds three new configurable alarms to the UI.
 
-- Added historical tracks from [@signalk/tracks-plugin](https://github.com/SignalK/tracks)
-  - I recommend setting this to a resolution of 1000ms and 86400 points to keep. This gives you high resolution data for the last 24 hours. If you've got plenty of memory, you might as well use it.
-- Added a check to prevent anchor alarm from firing when engines are on
-  - I always forget to turn the anchor alarm off and its annoying when it alarms as I'm motoring away.
-  - If you're truly dragging and you have your motor(s) on, then you already know about it!
-  - Plus, the act of turning on your engines will disable the alarm. One less thing to do in an urgent situation.
-- Added a scope calculator that takes your current depth, height of your bow above water, and the estimated tidal rise and then shows you what your scope would be at 3:1, 4:1, 5:1, and 7:1. This only shows when the anchor is up. Install the [signalk-tides](https://github.com/bkeepers/signalk-tides) plugin to get tide data.
-- Boat icons are now location and size accurate. With your beam, loa, and gps antenna position, it will size the icon to your boats true size and rotate it around the location of the GPS antenna. This is very helpful if you want to pre-select your anchoring spot based on satellite imagery as you can position your bow right in the center of the circle to drop your anchor. The alarm will trigger when your GPS antenna position goes outside the radius, so set that as usual.
-- Lots of UI improvements:
-  - Added colors to the historical tracks. Green = new, fading to red = old
-  - Inital anchor position guess is now pretty accurate
-  - Added a line to show distance and bearing to anchor
-  - Added status panel with: wind speed/direction, depth, alarm status
-  - Set anchor position now by dragging instead of panning.
-  - Cleaned up alarm radius UI
-  - Increased the max zoom
-  - Added other boats + their tracks
-  - More responsive UI
-  - Added a path checker field to the plugin config to make sure needed data is available.
+---
 
-# Usage
+## Features
 
-This plugin is intended to be used through the web interface with a phone or computer browser. Simply point your Web Browser to `http://[signalk-server-ip-address]:[port-number]/hoekens-anchor-alarm/` and you can set your anchor alarm.
+### Anchor Alarm (original)
+- **Watch zones** — circle, sector, or polygon shape around the anchor
+- **Anchor drag detection** — triggers when your GPS position exits the zone
+- **Engine override** — auto-silences the alarm when engines are running
+- **No-position watchdog** — alerts if GPS data stops
+- **Scope calculator** — recommend chain length based on depth + tide + bow height
+- **Historical tracks** — shows tracks of nearby vessels (requires @signalk/tracks-plugin)
+- **AIS overlay** — view other vessels on the map
+- **Physically accurate boat icon** — sized and rotated using LOA, beam, and GPS antenna position
 
-The way I use this app is to anchor the boat first, then once I'm settled I will use the webapp to set the anchor alarm. This is where its good to have a high resolution on the tracks, as you can usually see exactly where you dropped the hook. Make sure to set your radius a bit bigger to avoid false alarms.
+### Wind Alarms ✨ (Y2K addition)
+- **Wind Speed** — triggers when apparent wind exceeds a configurable threshold (knots)
+- **Wind Shift** — triggers when wind direction shifts cumulatively beyond a configurable number of degrees from the direction recorded at anchor drop
+- **Reset Wind Ref** — press to acknowledge a wind shift and record the new wind direction as the reference
+- **Visual feedback** — the InfoPanel shows current wind direction, reference direction, and cumulative delta ∆
 
-With v1.3 and the more accurate icons, it is now easy to pre-select your anchor location with the satellite imagery, circle the radius of the anchor alarm to check the depth is okay, and then use the app to get your bow exactly in the center of the alarm circle for a perfect drop.
+### AIS Proximity Alarm ✨ (Y2K addition)
+- Triggers when another vessel enters a configurable radius (meters) around your GPS position
+- Shows the nearest vessel name and distance in the InfoPanel
+- Filters out your own vessel by MMSI and context
 
-If you have engine data in SignalK (`propulsion.*.rpm` or `propulsion.*.state`) then you can enable the engine check functionality. Then, when you leave the anchorage under engine power, it will automatically end the anchor watch. Additionally, if you are dragging anchor and you start your engines to reposition, it will also disable the anchor alarm. When your anchor is dragging, it can sometimes be hectic. There's no reason to bombard you with alarms when you are aware of it and getting it sorted.
+### UI Enhancements ✨ (Y2K addition)
+- **Touch-friendly controls** — large +/- buttons for adjusting thresholds, no fiddly number inputs
+- **Toggle from the map view** — enable/disable alarms directly from the webapp, no need to visit the admin config page
+- **Alarm panel** — positioned top-right, shows all three alarm toggles with current values
+- **Auto-reset on raise** — raising anchor disables all alarms and clears notifications
+- **Disabled when not anchored** — alarm toggles are greyed out until anchor is dropped
+- **Instant save** — threshold changes are saved server-side immediately on each +/- click
 
-## Recommendations
+---
 
-This app pairs well with some other software:
+## Installation
 
-- Node-RED + Pushbullet for push notifications to your phone. Really great for when you're off the boat. Also works when you're on the boat to get an alarm on your phone.
-- `signalk-autostate` - Simply by using the anchor app, the plugin can automatically determine the difference between moored and anchored. You can then use this to automate things like an anchor light.
-- I highly recommend installing [Tailscale](https://tailscale.com/) on your devices. It makes it so easy to access SignalK remotely. Plus it's free and very simple to setup.
+### Via npm link (recommended for development)
 
-# Attribution
+```bash
+cd ~/.signalk
+npm install https://github.com/spidgrou/y2k-anchor-alarm
+```
 
-<a href="https://www.flaticon.com/free-icons/anchor" title="anchor icons">Anchor icons created by Freepik - Flaticon</a>
+### Manual
+
+```bash
+git clone https://github.com/spidgrou/y2k-anchor-alarm.git
+cd y2k-anchor-alarm
+npm install
+npm run build:ui
+ln -s $(pwd) ~/.signalk/node_modules/y2k-anchor-alarm
+cd ~/.signalk
+npm install ./y2k-anchor-alarm
+```
+
+Then restart Signal K Server and enable the plugin from the admin UI.
+
+---
+
+## Configuration
+
+### Via admin UI (Signal K → Plugin Config → Y2K's Anchor Alarm)
+
+| Setting | Default | Description |
+|---|---|---|
+| Enable Wind Alarms | false | Master toggle for wind speed & direction monitoring |
+| Enable Wind Shift Alarm | true | Separate toggle for direction shift alarm |
+| Wind Speed Threshold | 30 kts | Triggers when wind exceeds this speed |
+| Wind Direction Shift Threshold | 90° | Triggers when wind shifts this much from the anchor-drop reference |
+| Wind Alarm Severity | alarm | Notification level (`alert`, `warn`, `alarm`, `emergency`) |
+| Wind Alarm Interval | 60 s | Cooldown between repeat wind alarms |
+| Enable AIS Proximity | false | Enables proximity detection |
+| AIS Proximity Radius | 200 m | Trigger when a vessel enters this radius |
+| AIS Proximity Severity | alarm | Notification level |
+| AIS Proximity Interval | 60 s | Cooldown between repeat proximity alarms |
+
+### Via webapp UI
+
+From the anchor alarm web interface:
+
+1. **Alarm panel** (top-right corner) — toggle each alarm on/off
+2. **+ / - buttons** — adjust thresholds with large touch-friendly controls
+3. **Reset Wind Ref** (InfoPanel, bottom-right) — acknowledges a wind shift and records current wind as new reference
+4. **Values are saved instantly** — no need to toggle off/on after changing a threshold
+
+---
+
+## Notifications
+
+The plugin writes Signal K notifications that you can route to dashboards, MQTT, or Telegram:
+
+| Path | Example message |
+|---|---|
+| `notifications.navigation.anchor` | `Anchor Dragging (45m)` |
+| `notifications.environment.wind.speed` | `Wind 35 kts exceeds 30 kts` |
+| `notifications.environment.wind.directionChange` | `Wind shifted +45° (ref 180°)` |
+| `notifications.environment.ais.proximity` | `CATALYST at 89m` |
+
+---
+
+## Requirements
+
+- Node.js >= 20.19
+- Signal K Server >= 2.26
+- For historical tracks: `@signalk/tracks-plugin`
+- For scope calculator: `signalk-tides`, `signalk-derived-data`
+
+---
+
+## Credits
+
+- **Scott Bender** — original [signalk-anchoralarm-plugin](https://github.com/sbender9/signalk-anchoralarm-plugin)
+- **Zach Hoeken** — complete rewrite with custom Leaflet UI, engine check, scope calculator, boat icons, tracks integration. Check out his work at [hoeken/hoekens-anchor-alarm](https://github.com/hoeken/hoekens-anchor-alarm).
+- **Y2K Sailing** — wind alarms, AIS proximity alarm, touch-friendly controls, alarm panel
+
+---
+
+*Built for Y2K, a Beneteau Oceanis 50 sailing the South Pacific.*
+*If this plugin helps you, [buy Zach a coffee](https://ko-fi.com/hoeken) — he did the heavy lifting.*
