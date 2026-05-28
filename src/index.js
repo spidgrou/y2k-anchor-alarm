@@ -31,7 +31,7 @@ export default function (app) {
 
   plugin.id = "y2k-anchor-alarm";
   plugin.name = "Y2K's Anchor Alarm";
-  plugin.description = "Anchor alarm with scope calculator, scribble tracks, engine override, and physically accurate icons — plus wind and AIS proximity alarms.";
+  plugin.description = "Anchor alarm with wind speed, wind shift & AIS proximity alarms, scope calculator and engine override.";
 
   plugin.subscriberPeriod = 1000;
 
