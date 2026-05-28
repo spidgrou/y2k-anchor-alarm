@@ -1,6 +1,6 @@
 {
   "name": "y2k-anchor-alarm",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "SignalK anchor alarm with wind speed alarm, wind direction shift alarm, AIS proximity detection, scope calculator, engine override, and physically accurate boat icons — fork of hoeken/hoekens-anchor-alarm with extra alarms and touch-friendly UI.",
   "main": "src/index.cjs",
   "type": "module",
